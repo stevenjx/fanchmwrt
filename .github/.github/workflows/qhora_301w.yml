@@ -1,0 +1,74 @@
+name: Build QHora 301W Firmware
+
+on:
+  workflow_dispatch: # 手动触发编译
+
+env:
+  REPO_URL: https://github.com/fanchmwrt/fanchmwrt
+  REPO_BRANCH: main
+  CONFIG_FILE: qhora_301w.config
+  DIY_SH: diy.sh
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Free Disk Space
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+
+    - name: Initialize Environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y $(curl -fsSL https://raw.githubusercontent.com/p3terx/Actions-OpenWrt/master/scripts/init_env.sh | grep "apt-get install" | awk '{print $4}')
+        sudo timedatectl set-timezone "$TZ"
+
+    - name: Clone Source Code
+      run: |
+        git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
+        cd openwrt
+        echo "src-git fanchmwrt https://github.com/fanchmwrt/luci-app-fanchmwrt.git" >> feeds.conf.default
+
+    - name: Update & Install Feeds
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Load Custom Config
+      run: |
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        cd openwrt
+        make defconfig
+
+    - name: Download Packages
+      run: |
+        cd openwrt
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+
+    - name: Compile Firmware
+      run: |
+        cd openwrt
+        make -j$(nproc) || make -j1 V=s
+
+    - name: Organize Files
+      run: |
+        cd openwrt/bin/targets/qualcommax/ipq807x/
+        rm -rf packages
+        echo "FIRMWARE_PATH=$PWD" >> $GITHUB_ENV
+
+    - name: Upload Firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: QHora-301W-Fanchmwrt
+        path: ${{ env:FIRMWARE_PATH }}/*
