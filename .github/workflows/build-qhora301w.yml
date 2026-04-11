@@ -39,6 +39,7 @@ jobs:
       working-directory: /workdir
       run: |
         df -hT $PWD
+        # 拉取你的 fork 仓库，这会将根目录下的 qhora_301w.config 一起拉取下来
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
@@ -52,16 +53,10 @@ jobs:
       run: |
         cd openwrt
         rm -f .config
-        # 写入 Qhora 301W 的最新的 qualcommax 基础架构配置
-        echo "CONFIG_TARGET_qualcommax=y" >> .config
-        echo "CONFIG_TARGET_qualcommax_ipq807x=y" >> .config
-        echo "CONFIG_TARGET_qualcommax_ipq807x_DEVICE_qnap_qhora-301w=y" >> .config
+        # 直接使用仓库中的自定义配置文件
+        cp qhora_301w.config .config
         
-        # --- 在此处可以添加你需要的自定义插件 ---
-        # 例如：
-        # echo "CONFIG_PACKAGE_luci-app-passwall=y" >> .config
-        # echo "CONFIG_PACKAGE_luci-app-openclash=y" >> .config
-        
+        # 运行 defconfig 自动补全相关的依赖插件和内核模块
         make defconfig
 
     - name: Download package
